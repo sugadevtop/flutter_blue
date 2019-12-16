@@ -28,6 +28,8 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.ParcelUuid;
 import android.util.Log;
 
@@ -59,7 +61,7 @@ public class FlutterBluePlugin implements MethodCallHandler, RequestPermissionsR
     private static final String NAMESPACE = "plugins.pauldemarco.com/flutter_blue";
     private static final int REQUEST_COARSE_LOCATION_PERMISSIONS = 1452;
     static final private UUID CCCD_ID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
-    private final Registrar registrar;
+    final Registrar registrar;
     private final Activity activity;
     private final MethodChannel channel;
     private final EventChannel stateChannel;
@@ -71,10 +73,17 @@ public class FlutterBluePlugin implements MethodCallHandler, RequestPermissionsR
     // Pending call and result for startScan, in the case where permissions are needed
     private MethodCall pendingCall;
     private Result pendingResult;
+    private static FlutterBluePlugin instance;
+    private Result currentResult;
+    private Handler handler = new Handler(Looper.myLooper());
+
+    public static FlutterBluePlugin getInstance() {
+        return instance;
+    }
 
     /** Plugin registration. */
     public static void registerWith(Registrar registrar) {
-        final FlutterBluePlugin instance = new FlutterBluePlugin(registrar);
+        instance = new FlutterBluePlugin(registrar);
         registrar.addRequestPermissionsResultListener(instance);
     }
 
@@ -91,6 +100,7 @@ public class FlutterBluePlugin implements MethodCallHandler, RequestPermissionsR
 
     @Override
     public void onMethodCall(MethodCall call, Result result) {
+        currentResult = result;
         if(mBluetoothAdapter == null && !"isAvailable".equals(call.method)) {
             result.error("bluetooth_unavailable", "the device does not have bluetooth", null);
             return;
@@ -159,7 +169,7 @@ public class FlutterBluePlugin implements MethodCallHandler, RequestPermissionsR
                     pendingResult = result;
                     break;
                 }
-                startScan(call, result);
+                startScanService(call);
                 break;
             }
 
@@ -549,7 +559,7 @@ public class FlutterBluePlugin implements MethodCallHandler, RequestPermissionsR
             int requestCode, String[] permissions, int[] grantResults) {
         if (requestCode == REQUEST_COARSE_LOCATION_PERMISSIONS) {
             if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                startScan(pendingCall, pendingResult);
+                startScanService(pendingCall);
             } else {
                 pendingResult.error(
                         "no_permissions", "flutter_blue plugin requires location permissions for scanning", null);
@@ -658,6 +668,41 @@ public class FlutterBluePlugin implements MethodCallHandler, RequestPermissionsR
             result.success(null);
         } catch (Exception e) {
             result.error("startScan", e.getMessage(), e);
+        }
+    }
+
+    private void startScanService(MethodCall call) {
+        Intent serviceIntent = new Intent(registrar.context(), ForegroundService.class);
+        byte[] data = call.arguments();
+        serviceIntent.putExtra("call_data", data);
+
+        ContextCompat.startForegroundService(registrar.context(), serviceIntent);
+    }
+
+    void startScan(byte[] data) {
+        Protos.ScanSettings settings;
+        try {
+            settings = Protos.ScanSettings.newBuilder().mergeFrom(data).build();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                startScan21(settings);
+            } else {
+                startScan18(settings);
+            }
+            handler.post(new Runnable() {
+                @Override
+                public void run() {
+                    currentResult.success(null);
+                }
+            });
+
+        } catch (final Exception e) {
+            handler.post(new Runnable() {
+                @Override
+                public void run() {
+                    currentResult.error("startScan", e.getMessage(), e);
+                }
+            });
+
         }
     }
 

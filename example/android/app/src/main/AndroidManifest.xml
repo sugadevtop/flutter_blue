@@ -1,5 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     package="com.pauldemarco.flutter_blue_example">
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <!-- io.flutter.app.FlutterApplication is an android.app.Application that
          calls FlutterMain.startInitialization(this); in its onCreate method.
          In most cases you can leave this as-is, but you if you want to provide
@@ -8,7 +10,8 @@
     <application
         android:name="io.flutter.app.FlutterApplication"
         android:label="flutter_blue_example"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        tools:ignore="GoogleAppIndexingWarning">
         <activity
             android:name=".MainActivity"
             android:launchMode="singleTop"
@@ -28,5 +31,9 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <service
+            android:name="com.pauldemarco.flutter_blue.ForegroundService"
+            android:enabled="true"
+            android:exported="true" />
     </application>
 </manifest>
