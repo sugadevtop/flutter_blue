@@ -43,6 +43,9 @@ android {
         minSdkVersion 19
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
+    dependencies {
+        implementation 'androidx.core:core:1.1.0'
+    }
     lintOptions {
         disable 'InvalidPackage'
     }
